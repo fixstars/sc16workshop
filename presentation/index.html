@@ -1,0 +1,365 @@
+<!DOCTYPE html>
+<html lang="en">
+	<head>
+		<meta charset="utf-8" />
+
+		<title>Implementation and evaluation of data-compression algorithms for irregular-grid iterative methods on the PEZY-SC processor</title>
+
+		<meta name="description" content="Yoshifuji et al., SC16 workshop IA^3 2016 Sixth Workshop on Irregular Applications: Architectures and Algorithms" />
+		<meta name="author" content="YOSHIFUJI Naoki" />
+
+		<meta name="apple-mobile-web-app-capable" content="yes" />
+		<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+
+		<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, minimal-ui" />
+
+		<link rel="stylesheet" href="css/reveal.css" />
+		<link rel="stylesheet" href="css/theme/fixstars.css" id="theme" />
+
+		<!-- Code syntax highlighting -->
+		<link rel="stylesheet" href="lib/css/zenburn.css" />
+
+		<!-- Printing and PDF exports -->
+		<script>
+			var link = document.createElement( 'link' );
+			link.rel = 'stylesheet';
+			link.type = 'text/css';
+			link.href = window.location.search.match( /print-pdf/gi ) ? 'css/print/pdf.css' : 'css/print/paper.css';
+			document.getElementsByTagName( 'head' )[0].appendChild( link );
+		</script>
+
+		<!--[if lt IE 9]>
+		<script src="lib/js/html5shiv.js"></script>
+		<![endif]-->
+	
+		<link rel="stylesheet" href="main.css" />
+	</head>
+
+	<body>
+		<div class="reveal">
+			<svg id="slide_number_background" style="position: absolute; top: 2px; right: 2px; width: 2.2em;" viewBox="0 0 100 150">
+				<polygon
+					points="0,0 100,0 100,80 50,120 0,80"
+					fill="#0070c0" />
+			</svg>
+			<div class="slides">
+				<!-- タイトルページ -->
+				<section>
+					<h1><span>Implementation and evaluation of data-compression</span> <span>algorithms for irregular-grid iterative methods</span> <span>on the PEZY-SC processor</span></h1>
+					<ul id="attribution">
+						<li>Naoki Yoshifuji <small>(Fixstars)</small></li>
+						<li>Ryo Sakamoto <small>(Fixstars, present: PEZY Computing)</small></li>
+						<li>Keigo Nitadori <small>(RIKEN AICS)</small></li>
+						<li>Jun Makino <small>(Department of Planetology, Kobe University)</small></li>
+					</ul>
+					<time pubdate="">2016-11-13</time>
+					<p id="place">IA<sup>3</sup> 2016 Sixth Workshop on Irregular Applications: Architectures and Algorithms (SC16 Workshop) @ Salt Lake City, UT</p>
+				</section>
+				
+				<!-- 以下に各スライドを記述してください -->
+				<section>
+					<h3>Talk Summary</h3>
+					<div style="font-size: 90%">
+						<div>
+							<ul>
+								<li><strong>HPCG</strong> was implemented on <strong>PEZY-SC</strong> on ZettaScaler system</li>
+								<li>Single-chip performance of SpMV is 11.6 GFLOPS, which is <strong>93%</strong> of the theretical limit determined by the <strong>memory bandwidth</strong></li>
+								<li>Simple and fast <strong>matrix compression</strong> were applied to SpMV and tested</li>
+								<li>Data+Index table-based compression improved performance by a factor of <strong>2.8</strong></li>
+							</ul>
+						</div>
+						<p>Data compression can be very powerful way to improve performance of unstructured grid calculation</p>
+					</div>
+				</section>
+				
+				<!--
+				<section id="toc">
+					<h3>Contents</h3>
+					<ol class="toc">
+						<li>Introduction</li>
+						<li>PEZY-SC and ZettaScaler</li>
+						<li>HPCG on PEZY</li>
+						<li>SpMV with compression</li>
+						<li>Conclusion</li>
+					</ol>
+				</section>
+				-->
+				
+				<section>
+					<h2>Introduction</h2>
+					<section class="toc">
+						<h3>Contents</h3>
+						<ol class="toc">
+							<li class="recent">Introduction</li>
+							<li>PEZY-SC and ZettaScaler</li>
+							<li>HPCG on PEZY</li>
+							<li>SpMV with compression</li>
+							<li>Conclusion</li>
+						</ol>
+					</section>
+
+					<section>
+						<h3>To solve linear equations</h3>
+						<div>
+							<p>Many real problems (e.g. FEM or other <strong>CAE problems</strong>) requires to solve large linear equations:</p>
+							<p>\[A \boldsymbol{x} = \boldsymbol{b}\]</p>
+						</div>
+						
+						<div>
+							<p>\(A\) is large sparse and irregular matrix in most cases of real problems</p>
+							<p class="therefore" >Iterative methods are suited</p>
+						</div>
+
+						<p>Multiplication of sparse matrix and vector (<strong>SpMV</strong>) is the most time-consuming process</p>
+					</section>
+
+					<section>
+						<h3>SpMV is slow on modern HPC systems</h3>
+						<div>
+							<table style="font-size: 80%">
+								<caption>Example: Top 3 of June 2016 HPCG results</caption>
+								<thead>
+									<tr><th>Rank</th><th>Computer</th><th>Rpeak</th><th>HPCG</th><th>HPCG/Rpeak</th></tr>
+								</thead>
+								<tbody>
+									<tr><th>1</th><th>MilkyWay-2</th><td>54.9</td><td>0.58</td><td>1.1%</td></tr>
+									<tr><th>2</th><th>K computer</th><td>11.3</td><td>0.55</td><td>4.9%</td></tr>
+									<tr><th>3</th><th>Sunway TaihuLight</th><td>125.4</td><td>0.37</td><td>0.3%</td></tr>
+								</tbody>
+							</table>
+						</div>
+						<p>Modern computer's <strong>memory bandwidth is too small</strong> against (arithmetic) instruction throughput for SpMV</p>
+					</section>
+
+					<section>
+						<h3>Our propposal</h3>
+						<div>A simple data <strong>compression</strong> and decompression <br /> for sparse matrix</div>
+						<div>↓</div>
+						<div><strong>Reduce memory access</strong></div>
+						<div>↓</div>
+						<div>Improve performance</div>
+					</section>
+				</section>
+
+				<section>
+					<h2>PEZY-SC and ZettaScaler</h2>
+					<section class="toc">
+						<h3>Contents</h3>
+						<ol class="toc">
+							<li>Introduction</li>
+							<li class="recent">PEZY-SC and ZettaScaler</li>
+							<li>HPCG on PEZY</li>
+							<li>SpMV with compression</li>
+							<li>Conclusion</li>
+						</ol>
+					</section>
+
+					<section>
+						<h3>Why PEZY-SC?</h3>
+						<div>
+							<ul style="float: left; width: 75%">
+								<li><strong>MIMD</strong> processor<br />→easy implementation</li>
+								<li><strong>Byte per Flop</strong> is very small<br />→easy to check compression efficiency</li>
+							</ul>
+							<figure style="float: right; width: 20%">
+								<img src="img/pezy.jpg" style="width: 100%" />
+							</figure>
+						</div>
+					</section>
+				</section>
+
+				<section>
+					<h2>HPCG on PEZY</h2>
+					<section class="toc">
+						<h3>Contents</h3>
+						<ol class="toc">
+							<li>Introduction</li>
+							<li>PEZY-SC and ZettaScaler</li>
+							<li class="recent">HPCG on PEZY</li>
+							<li>SpMV with compression</li>
+							<li>Conclusion</li>
+						</ol>
+					</section>
+
+					<section>
+						<h3>Why HPCG?</h3>
+						<ul>
+							<li>A <strong>standard</strong> benchmark for iterative method (MGCG)</li>
+							<li>Its model is <strong>close to real problem</strong> (3D diffusion eq.)</li>
+						</ul>
+					</section>
+
+					<section>
+						<h3>Result of HPCG on PEZY</h3>
+						<p>Achieved 168.06 GFLOPS <small>with 8 nodes (32 PEZY-SCs)</small></p>
+						<figure style="width: 100%">
+							<img src="img/bar_chart_include_trans.svg" />
+							<figcaption>Fraction of time consuming</figcaption>
+						</figure>
+					</section>
+
+					<section>
+						<h3>SpMV analysis</h3>
+						<p><strong>93%</strong> of the theoretical limit</p>
+						<dl>
+							<dt>Achieved</dt>
+							<dd><strong>11.6</strong> GFLOPS</dd>
+							<dt>Theoretical by memory bandwidth</dt>
+							<dd><strong>12.5</strong> GFLOPS</dd>
+						</dl>
+					</section>
+
+				</section>
+
+				<section>
+					<h2>SpMV with compression</h2>
+					<section class="toc">
+						<h3>Contents</h3>
+						<ol class="toc">
+							<li>Introduction</li>
+							<li>PEZY-SC and ZettaScaler</li>
+							<li>HPCG on PEZY</li>
+							<li class="recent">SpMV with compression</li>
+							<li>Conclusion</li>
+						</ol>
+					</section>
+
+					<section>
+						<h3>Matrix in HPCG</h3>
+						<div>
+							<figure style="float: left; width: 50%">
+								<img src="img/A.png" />
+								<figcaption>Illustration of the matrix in HPCG</figcaption>
+							</figure>
+							<ul style="float: right; width: 45%">
+								<li>2 <strong>same values</strong></li>
+								<li>Several <strong>same patterns</strong> for non-diagonal position</li>
+							</ul>
+						<div>
+					</section>
+
+					<section>
+						<h3>Matrix in real application</h3>
+						<div>
+							<dl style="width: 75%; float: left">
+								<dt>Same <strong>coefficients</strong></dt>
+								<dd>If the physical characteristics of the material is uniform</dd>
+								<dt>Same <strong>relative index</strong> pattern</dt>
+								<dd>If we can use effectively regular grids for the bulk of the material</dd>
+							</dl>
+							<figure style="width: 20%; float: right">
+								<img style="width: 100%" src="img/Example_curvilinear_grid.svg" />
+							</figure>
+						</div>
+					</section>
+
+					<section>
+						<h3>Table-based sparse matrix compression</h3>
+						<dl>
+							<dt>Data table compression</dt>
+							<dd>extract same <strong>value</strong> of matrix elements</dd>
+							<dt>Index table compression</dt>
+							<dd>extract same <strong>pattern of column number</strong></dd>
+						</dl>
+					</section>
+					
+					<section>
+						<h3>SpMV result on HPCG matrix</h3>
+						<div>
+							<table style="width: 80%; font-size: 80%">
+								<thead>
+									<tr><th>Compression</th><th>Achieved GFLOPS</th><th>Theoretical GFLOPS</th><th>ratio (achieved/theretical)</th></tr>
+								</thead>
+								<tbody>
+									<tr><th>None</th><td>11.6</td><td>12.5</td><td>x1.0 / x1.0</td></tr>
+									<tr><th>Data table</th><td>15.9</td><td>34.8</td><td>x1.4 / x2.8</td></tr>
+									<tr><th>Data+Index table</th><td>32.4</td><td>326.0</td><td><strong>x2.8</strong> / x26.1</td></tr>
+								</tbody>
+							</table>
+						</div>
+						<p>NOTE: theoretical estimate ignores <strong>input vector random access</strong></p>
+					</section>
+				</section>
+
+				<!-- 最終スライド -->
+				<section>
+					<!-- 最終スライドのh2は表示されません。 -->
+
+					<h2>Conclusion</h2>
+					<section class="toc">
+						<h3>Contents</h3>
+						<ol class="toc">
+							<li>Introduction</li>
+							<li>PEZY-SC and ZettaScaler</li>
+							<li>HPCG on PEZY</li>
+							<li>SpMV with compression</li>
+							<li class="recent">Conclusion</li>
+						</ol>
+					</section>
+					
+					<section>
+						<h3>Conclusion</h3>
+						<div>
+							<ul style="font-size: 80%">
+								<li><strong>HPCG</strong> was implemented on <strong>PEZY-SC</strong> on ZettaScaler system</li>
+								<li>Single-chip performance of SpMV is <strong>11.6 GFLOPS</strong>, which is 93% of the theretical limit determined by the <strong>memory bandwidth</strong></li>
+								<li>Simple and fast <strong>matrix compression</strong> were applied to SpMV and tested</li>
+								<li>Data+Index table-based compression improved performance by a factor of <strong>2.8</strong></li>
+							</ul>
+						</div>
+						<p style="text-align: center">
+							<span>Compression technique will improve</span>
+							<span>solver for linear equations</span>
+							<span>in CAE application and others</span>
+							<span>on the current and future HPC system!</span>
+						</p>
+					</section>
+
+					<section>
+						<h3>Acknowledgment</h3>
+						<ul>
+							<li>The authors would like to thank people in PEZY Computing/ExaScaler for their invaluable help in solving many problems we encountered while porting and tuning HPCG.</li>
+							<li>Part of the research covered in this paper research was funded by MEXT’s program for the Development and Improvement for the Next Generation Ultra High-Speed Computer System,
+							under its Subsidies for Operating the Specific Advanced Large Research Facilities.</li>
+						</ul>
+					</section>
+
+					<section>
+						<div style="font-size: 400%; margin: auto">return 0;</div>
+					</section>
+				</section>
+			</div>
+		</div>
+
+		<script src="lib/js/head.min.js"></script>
+		<script src="js/reveal.js"></script>
+
+		<script>
+
+			// Full list of configuration options available at:
+			// https://github.com/hakimel/reveal.js#configuration
+			Reveal.initialize({
+				controls: true,
+				progress: true,
+				history: true,
+				center: true,
+				slideNumber: "h.v",
+
+				width: 960,
+				height: 720,
+				margin: 0,
+
+				transition: 'slide', // none/fade/slide/convex/concave/zoom
+
+				// Optional reveal.js plugins
+				dependencies: [
+					{ src: 'lib/js/classList.js', condition: function() { return !document.body.classList; } },
+					{ src: 'plugin/highlight/highlight.js', async: true, callback: function() { hljs.initHighlightingOnLoad(); } },
+					{ src: 'plugin/zoom-js/zoom.js', async: true },
+					{ src: 'plugin/notes/notes.js', async: true },
+					{ src: 'plugin/math/math.js', async: true }
+				]
+			});
+		</script>
+	</body>
+</html>
