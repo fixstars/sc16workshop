@@ -100,7 +100,7 @@
 
 					<section>
 						<h3>To solve linear equations</h3>
-						<div>
+						<div style="font-size: 80%">
 							<p>Many real problems (e.g. FEM or other <strong>CAE problems</strong>) requires to solve large linear equations:</p>
 							<p>\[A \boldsymbol{x} = \boldsymbol{b}\]</p>
 						</div>
@@ -229,7 +229,7 @@
 						<div>
 							<figure style="float: left; width: 50%">
 								<img src="img/A.png" />
-								<figcaption>Illustration of the matrix in HPCG</figcaption>
+								<figcaption style="font-size: 70%">Illustration of the matrix in HPCG</figcaption>
 							</figure>
 							<ul style="float: right; width: 45%">
 								<li>2 <strong>same values</strong></li>
@@ -266,7 +266,7 @@
 					<section>
 						<h3>SpMV result on HPCG matrix</h3>
 						<div>
-							<table style="width: 80%; font-size: 80%">
+							<table style="width: 80%; font-size: 70%">
 								<thead>
 									<tr><th>Compression</th><th>Achieved GFLOPS</th><th>Theoretical GFLOPS</th><th>ratio (achieved/theretical)</th></tr>
 								</thead>
@@ -300,7 +300,7 @@
 					<section>
 						<h3>Conclusion</h3>
 						<div>
-							<ul style="font-size: 80%">
+							<ul style="font-size: 75%">
 								<li><strong>HPCG</strong> was implemented on <strong>PEZY-SC</strong> on ZettaScaler system</li>
 								<li>Single-chip performance of SpMV is <strong>11.6 GFLOPS</strong>, which is 93% of the theretical limit determined by the <strong>memory bandwidth</strong></li>
 								<li>Simple and fast <strong>matrix compression</strong> were applied to SpMV and tested</li>
@@ -326,6 +326,10 @@
 
 					<section>
 						<div style="font-size: 400%; margin: auto">return 0;</div>
+						<ul style="font-size: 50%">
+							<li>Workshop paper: <a href="http://conferences.computer.org/ia3/2016/papers/3867a058.pdf">http://conferences.computer.org/ia3/2016/papers/3867a058.pdf</a></li>
+							<li>Full paper: <a href="https://arxiv.org/abs/1612.00530">https://arxiv.org/abs/1612.00530</a></li>
+						</ul>
 					</section>
 				</section>
 			</div>
